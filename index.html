@@ -2,8 +2,8 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Questionnaire des Schémas de Young (YSQ-L3)</title>
 <meta name="description" content="Questionnaire des Schémas de Young (YSQ-L3) : répondez en ligne, vos réponses restent sur votre appareil.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -95,6 +95,7 @@ tr.missing td.num{box-shadow:inset 4px 0 0 #c05621}
 .send label{display:block;font:600 .9rem/1.3 var(--sans);margin:.8rem 0 .3rem}
 .send input[type="text"]{width:100%;max-width:24rem;font:1rem var(--sans);padding:.6rem .7rem;border:1px solid var(--line);border-radius:.4rem;background:#fff;color:var(--ink)}
 .send input[type="text"]:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+.send .h-captcha{margin-top:1.1rem}
 .send-row{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-top:1.1rem}
 button.primary{font:600 1rem/1 var(--sans);padding:.85rem 1.3rem;border-radius:.45rem;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);cursor:pointer}
 button.primary:hover{background:#184c57}
@@ -1470,10 +1471,11 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
 </section>
 <section class="send card" id="envoi">
   <h2>Envoyer mes réponses</h2>
-  <p>Un courriel contenant toutes les sections, tous les tableaux et vos réponses sera envoyé à la personne qui gère ce site. Pour envoyer, toutes les affirmations doivent avoir une réponse.</p>
+  <p>Un courriel contenant toutes les sections, tous les tableaux et vos réponses sera envoyé à la personne qui gère ce site. Pour envoyer, toutes les affirmations doivent avoir une réponse, puis une vérification anti-robot (hCaptcha) doit être validée.</p>
   <label for="prenom">Votre prénom ou nom (facultatif)</label>
   <input id="prenom" type="text" maxlength="80" autocomplete="name">
   <input type="checkbox" id="botcheck" tabindex="-1" autocomplete="off" style="display:none">
+  <div class="h-captcha" data-captcha="true"></div>
   <div class="send-row">
     <button type="button" id="send" class="primary">Envoyer mes réponses</button>
     <span id="status" role="status" aria-live="polite"></span>
@@ -1483,6 +1485,7 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
 
 <footer class="wrap">Questionnaire des Schémas de Young (YSQ-L3).</footer>
 
+<script src="https://web3forms.com/client/script.js" async defer></script>
 <script>
 (function () {
   var KEY = "ysq-l3-reponses";
@@ -1598,6 +1601,12 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
       if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    var capEl = document.querySelector('textarea[name="h-captcha-response"]');
+    var capToken = capEl ? capEl.value : "";
+    if (!capToken) {
+      setStatus("Cochez la case de vérification « Je suis humain » avant d’envoyer.", "err");
+      return;
+    }
     var name = document.getElementById("prenom").value.trim();
     btn.disabled = true; setStatus("Envoi en cours…");
     fetch("https://api.web3forms.com/submit", {
@@ -1609,6 +1618,7 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
         from_name: name || "Visiteur du questionnaire",
         name: name || "(non renseigné)",
         botcheck: document.getElementById("botcheck").checked,
+        "h-captcha-response": capToken,
         message: buildMessage(name)
       })
     }).then(function (r) { return r.json(); }).then(function (res) {
@@ -1616,7 +1626,10 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
       else { setStatus("L’envoi a échoué. Vos réponses sont conservées sur cette page, réessayez dans un instant.", "err"); }
     }).catch(function () {
       setStatus("L’envoi a échoué (connexion). Vos réponses sont conservées sur cette page, réessayez.", "err");
-    }).then(function () { btn.disabled = false; });
+    }).then(function () {
+      btn.disabled = false;
+      try { if (window.hcaptcha) window.hcaptcha.reset(); } catch (e) {}
+    });
   }
 
   document.getElementById("send").addEventListener("click", sendAnswers);
