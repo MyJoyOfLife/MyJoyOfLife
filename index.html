@@ -1572,7 +1572,14 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
 
   function setStatus(msg, cls) {
     var s = document.getElementById("status");
-    s.textContent = msg; s.className = cls || "";
+    s.textContent = "";
+    var list = Array.isArray(msg) ? msg : [msg];
+    for (var i = 0; i < list.length; i++) {
+      var line = document.createElement("div");
+      line.textContent = list[i];
+      s.appendChild(line);
+    }
+    s.className = cls || "";
   }
 
   function sendAnswers() {
@@ -1581,6 +1588,7 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
       setStatus("L’envoi n’est pas encore configuré sur ce site.", "err");
       return;
     }
+    var problems = [];
     var missing = [];
     var allRows = document.querySelectorAll("tbody tr");
     for (var i = 0; i < allRows.length; i++) {
@@ -1590,27 +1598,24 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
       if (miss) missing.push(rn);
     }
     if (missing.length) {
-      var msg;
       if (missing.length < 10) {
-        msg = "Il manque " + (missing.length === 1 ? "1 réponse : affirmation n° " : missing.length + " réponses : affirmations n° ") + missing.join(", ") + ".";
+        problems.push("Il manque " + (missing.length === 1 ? "1 réponse : affirmation n° " : missing.length + " réponses : affirmations n° ") + missing.join(", ") + ".");
       } else {
-        msg = "Il manque encore " + missing.length + " réponses sur " + TOTAL + ". Toutes les affirmations doivent avoir une réponse pour envoyer.";
+        problems.push("Il manque encore " + missing.length + " réponses sur " + TOTAL + ". Les affirmations sans réponse sont surlignées en orange.");
       }
-      setStatus(msg, "err");
-      var first = document.querySelector('tbody tr[data-n="' + missing[0] + '"]');
-      if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
     }
     var nameField = document.getElementById("prenom");
     if (!nameField.value.trim()) {
-      setStatus("Indiquez votre prénom et nom avant d’envoyer.", "err");
-      nameField.focus();
-      return;
+      problems.push("Indiquez votre prénom et nom avant d’envoyer.");
     }
     var capEl = document.querySelector('textarea[name="h-captcha-response"]');
     var capToken = capEl ? capEl.value : "";
     if (!capToken) {
-      setStatus("Cochez la case de vérification « Je suis un humain » avant d’envoyer.", "err");
+      problems.push("Cochez la case de vérification « Je suis un humain » avant d’envoyer.");
+    }
+    if (problems.length) {
+      setStatus(problems[0], "err");
+      if (!missing.length && !nameField.value.trim()) nameField.focus();
       return;
     }
     var name = document.getElementById("prenom").value.trim();
