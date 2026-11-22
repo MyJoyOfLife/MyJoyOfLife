@@ -66,6 +66,8 @@ th:nth-child(1){text-align:right}
 button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 .val{display:none}
 tr.done td{background:#f4fafb}
+tr.missing td{background:#fff4e5}
+tr.missing td.num{box-shadow:inset 4px 0 0 #c05621}
 
 /* Mobile : chaque ligne devient un bloc */
 @media (max-width:700px){
@@ -79,6 +81,8 @@ tr.done td{background:#f4fafb}
   td{border:0;padding:0}
   tr.done td{background:transparent}
   tr.done{background:#f4fafb}
+  tr.missing{background:#fff4e5}
+  tr.missing td{background:transparent;box-shadow:none !important}
   td.num{grid-area:1/1;width:auto;text-align:left;padding-top:.15rem}
   td.q{grid-area:1/2}
   td.ans{grid-area:2/2;width:auto;padding-top:.6rem}
@@ -99,17 +103,6 @@ button.primary[disabled]{opacity:.6;cursor:progress}
 #status.err{color:#9b2c2c}
 footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 0 3rem}
 
-/* Impression : on n'affiche que la réponse choisie */
-@media print{
-  body{background:#fff;font-size:10.5pt}
-  .bar,.privacy,.btns,.tools,.send{display:none}
-  .val{display:inline;font:600 11pt var(--sans)}
-  .card,table{border-color:#999}
-  tr{break-inside:avoid}
-  .schema{break-inside:auto}
-  .schema h2{break-after:avoid}
-  tr.done td{background:transparent}
-}
 @media (prefers-reduced-motion:reduce){.fill{transition:none}}
 </style>
 </head>
@@ -123,8 +116,6 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
     </div>
     <div class="tools">
       <button type="button" data-action="goto-send">Envoyer</button>
-      <button type="button" data-action="csv">Télécharger mes réponses (CSV)</button>
-      <button type="button" data-action="print">Imprimer</button>
       <button type="button" data-action="reset" class="danger">Tout effacer</button>
     </div>
   </div>
@@ -149,8 +140,6 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
       <p class="privacy">Cliquez sur un chiffre pour répondre, cliquez à nouveau dessus pour annuler. Vos réponses sont enregistrées dans ce navigateur, sur votre appareil. Elles ne sont envoyées que si vous cliquez sur « Envoyer mes réponses » en bas de la page.</p>
       <div class="tools tools-mobile">
       <button type="button" data-action="goto-send">Envoyer</button>
-      <button type="button" data-action="csv">Télécharger mes réponses (CSV)</button>
-      <button type="button" data-action="print">Imprimer</button>
       <button type="button" data-action="reset" class="danger">Tout effacer</button>
       </div>
     </div>
@@ -1480,7 +1469,7 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
 </section>
 <section class="send card" id="envoi">
   <h2>Envoyer mes réponses</h2>
-  <p>Un courriel contenant toutes les sections, tous les tableaux et vos réponses sera envoyé à la personne qui gère ce site. Les affirmations sans réponse y figureront avec une case vide.</p>
+  <p>Un courriel contenant toutes les sections, tous les tableaux et vos réponses sera envoyé à la personne qui gère ce site. Pour envoyer, toutes les affirmations doivent avoir une réponse.</p>
   <label for="prenom">Votre prénom ou nom (facultatif)</label>
   <input id="prenom" type="text" maxlength="80" autocomplete="name">
   <input type="checkbox" id="botcheck" tabindex="-1" autocomplete="off" style="display:none">
@@ -1520,6 +1509,7 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
     }
     tr.querySelector(".val").textContent = v ? v : "";
     tr.classList.toggle("done", !!v);
+    if (v) tr.classList.remove("missing");
   }
   function updateCount() {
     var c = Object.keys(answers).length;
@@ -1548,25 +1538,6 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
       answers = {}; save(); paintAll();
     }
   }
-
-  function exportCsv() {
-    function q(s) { return '"' + String(s).replace(/"/g, '""') + '"'; }
-    var lines = [["Numéro", "Schéma", "Réponse", "Question"].map(q).join(";")];
-    var rows = document.querySelectorAll("tbody tr");
-    for (var i = 0; i < rows.length; i++) {
-      var tr = rows[i];
-      var n = tr.getAttribute("data-n");
-      var code = tr.closest("section").getAttribute("data-code");
-      lines.push([n, code, answers[n] || "", tr.querySelector(".q").textContent].map(q).join(";"));
-    }
-    var blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "mes-reponses-ysq-l3.csv";
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-  }
-
 
   function buildMessage(name) {
     var out = [];
@@ -1606,9 +1577,26 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
       setStatus("L’envoi n’est pas encore configuré sur ce site.", "err");
       return;
     }
-    var count = Object.keys(answers).length;
-    if (count === 0) { setStatus("Répondez à au moins une affirmation avant d’envoyer.", "err"); return; }
-    if (count < TOTAL && !window.confirm("Il reste " + (TOTAL - count) + " affirmation(s) sans réponse. Envoyer quand même ?")) return;
+    var missing = [];
+    var allRows = document.querySelectorAll("tbody tr");
+    for (var i = 0; i < allRows.length; i++) {
+      var rn = allRows[i].getAttribute("data-n");
+      var miss = !answers[rn];
+      allRows[i].classList.toggle("missing", miss);
+      if (miss) missing.push(rn);
+    }
+    if (missing.length) {
+      var msg;
+      if (missing.length < 10) {
+        msg = "Il manque " + (missing.length === 1 ? "1 réponse : affirmation n° " : missing.length + " réponses : affirmations n° ") + missing.join(", ") + ".";
+      } else {
+        msg = "Il manque encore " + missing.length + " réponses sur " + TOTAL + ". Toutes les affirmations doivent avoir une réponse pour envoyer.";
+      }
+      setStatus(msg, "err");
+      var first = document.querySelector('tbody tr[data-n="' + missing[0] + '"]');
+      if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     var name = document.getElementById("prenom").value.trim();
     btn.disabled = true; setStatus("Envoi en cours…");
     fetch("https://api.web3forms.com/submit", {
@@ -1633,7 +1621,7 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
   document.getElementById("send").addEventListener("click", sendAnswers);
   function gotoSend() { document.getElementById("envoi").scrollIntoView({ behavior: "smooth" }); }
 
-  var actions = { "goto-send": gotoSend, reset: resetAll, print: function () { window.print(); }, csv: exportCsv };
+  var actions = { "goto-send": gotoSend, reset: resetAll };
   var abtns = document.querySelectorAll("[data-action]");
   for (var k = 0; k < abtns.length; k++) {
     abtns[k].addEventListener("click", actions[abtns[k].getAttribute("data-action")]);
