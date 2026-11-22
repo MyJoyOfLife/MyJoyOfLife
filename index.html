@@ -1471,9 +1471,8 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
 </section>
 <section class="send card" id="envoi">
   <h2>Envoyer mes réponses</h2>
-  <p>Un courriel contenant toutes les sections, tous les tableaux et vos réponses sera envoyé à la personne qui gère ce site. Pour envoyer, toutes les affirmations doivent avoir une réponse, puis une vérification anti-robot (hCaptcha) doit être validée.</p>
-  <label for="prenom">Votre prénom ou nom (facultatif)</label>
-  <input id="prenom" type="text" maxlength="80" autocomplete="name">
+  <label for="prenom">Votre prénom et nom (obligatoire)</label>
+  <input id="prenom" type="text" maxlength="80" autocomplete="name" required aria-required="true">
   <input type="checkbox" id="botcheck" tabindex="-1" autocomplete="off" style="display:none">
   <div class="h-captcha" data-captcha="true"></div>
   <div class="send-row">
@@ -1599,6 +1598,12 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
       setStatus(msg, "err");
       var first = document.querySelector('tbody tr[data-n="' + missing[0] + '"]');
       if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    var nameField = document.getElementById("prenom");
+    if (!nameField.value.trim()) {
+      setStatus("Indiquez votre prénom et nom avant d’envoyer.", "err");
+      nameField.focus();
       return;
     }
     var capEl = document.querySelector('textarea[name="h-captcha-response"]');
