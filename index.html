@@ -85,12 +85,24 @@ tr.done td{background:#f4fafb}
   .btns button{width:2.6rem;height:2.6rem}
 }
 
+
+.send{margin:2.5rem 0 1rem}
+.send label{display:block;font:600 .9rem/1.3 var(--sans);margin:.8rem 0 .3rem}
+.send input[type="text"]{width:100%;max-width:24rem;font:1rem var(--sans);padding:.6rem .7rem;border:1px solid var(--line);border-radius:.4rem;background:#fff;color:var(--ink)}
+.send input[type="text"]:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+.send-row{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-top:1.1rem}
+button.primary{font:600 1rem/1 var(--sans);padding:.85rem 1.3rem;border-radius:.45rem;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);cursor:pointer}
+button.primary:hover{background:#184c57}
+button.primary[disabled]{opacity:.6;cursor:progress}
+#status{font:.95rem/1.4 var(--sans)}
+#status.ok{color:#1d6b3a}
+#status.err{color:#9b2c2c}
 footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 0 3rem}
 
 /* Impression : on n'affiche que la réponse choisie */
 @media print{
   body{background:#fff;font-size:10.5pt}
-  .bar,.privacy,.btns,.tools{display:none}
+  .bar,.privacy,.btns,.tools,.send{display:none}
   .val{display:inline;font:600 11pt var(--sans)}
   .card,table{border-color:#999}
   tr{break-inside:avoid}
@@ -110,6 +122,7 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
       <div class="track"><div class="fill" id="fill"></div></div>
     </div>
     <div class="tools">
+      <button type="button" data-action="goto-send">Envoyer</button>
       <button type="button" data-action="csv">Télécharger mes réponses (CSV)</button>
       <button type="button" data-action="print">Imprimer</button>
       <button type="button" data-action="reset" class="danger">Tout effacer</button>
@@ -133,8 +146,9 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
 <li><span class='n'>5</span><span>Le plus souvent vrai pour moi.</span></li>
 <li><span class='n'>6</span><span>Me décrit parfaitement.</span></li>
       </ol>
-      <p class="privacy">Cliquez sur un chiffre pour répondre, cliquez à nouveau dessus pour annuler. Vos réponses sont enregistrées uniquement dans ce navigateur, sur votre appareil : elles ne sont envoyées à personne.</p>
+      <p class="privacy">Cliquez sur un chiffre pour répondre, cliquez à nouveau dessus pour annuler. Vos réponses sont enregistrées dans ce navigateur, sur votre appareil. Elles ne sont envoyées que si vous cliquez sur « Envoyer mes réponses » en bas de la page.</p>
       <div class="tools tools-mobile">
+      <button type="button" data-action="goto-send">Envoyer</button>
       <button type="button" data-action="csv">Télécharger mes réponses (CSV)</button>
       <button type="button" data-action="print">Imprimer</button>
       <button type="button" data-action="reset" class="danger">Tout effacer</button>
@@ -1464,6 +1478,17 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
 </tbody>
 </table>
 </section>
+<section class="send card" id="envoi">
+  <h2>Envoyer mes réponses</h2>
+  <p>Un courriel contenant toutes les sections, tous les tableaux et vos réponses sera envoyé à la personne qui gère ce site. Les affirmations sans réponse y figureront avec une case vide.</p>
+  <label for="prenom">Votre prénom ou nom (facultatif)</label>
+  <input id="prenom" type="text" maxlength="80" autocomplete="name">
+  <input type="checkbox" id="botcheck" tabindex="-1" autocomplete="off" style="display:none">
+  <div class="send-row">
+    <button type="button" id="send" class="primary">Envoyer mes réponses</button>
+    <span id="status" role="status" aria-live="polite"></span>
+  </div>
+</section>
 </main>
 
 <footer class="wrap">Questionnaire des Schémas de Young (YSQ-L3).</footer>
@@ -1473,6 +1498,8 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
   var KEY = "ysq-l3-reponses";
   var TOTAL = 232;
   var answers = {};
+  var ACCESS_KEY = "633f0ba8-3e09-4e14-ade4-f39d8b200330"; // clé gratuite obtenue sur web3forms.com (voir explications)
+  var SUBJECT = "Questionnaire des Schémas de Young (YSQ-L3) – réponses";
 
   function load() {
     try {
@@ -1540,7 +1567,73 @@ footer{font-family:var(--sans);font-size:.85rem;color:var(--muted);padding:1rem 
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   }
 
-  var actions = { reset: resetAll, print: function () { window.print(); }, csv: exportCsv };
+
+  function buildMessage(name) {
+    var out = [];
+    var d = new Date();
+    out.push("Questionnaire des Schémas de Young (YSQ-L3)");
+    out.push("Reçu le " + d.toLocaleDateString("fr-FR") + " à " + d.toLocaleTimeString("fr-FR"));
+    out.push("Nom indiqué : " + (name || "(non renseigné)"));
+    out.push("Réponses données : " + Object.keys(answers).length + " sur " + TOTAL);
+    out.push("");
+    out.push("Échelle : 1 = Cela est complètement faux pour moi | 2 = Le plus souvent faux pour moi | 3 = Plutôt vrai que faux pour moi | 4 = Assez vrai pour moi | 5 = Le plus souvent vrai pour moi | 6 = Me décrit parfaitement");
+    var secs = document.querySelectorAll("section.schema");
+    for (var i = 0; i < secs.length; i++) {
+      out.push("");
+      out.push("==============================");
+      out.push("Schéma " + secs[i].getAttribute("data-code"));
+      out.push("==============================");
+      out.push("№   | Réponse | Question");
+      out.push("----|---------|---------");
+      var rows = secs[i].querySelectorAll("tbody tr");
+      for (var j = 0; j < rows.length; j++) {
+        var n = rows[j].getAttribute("data-n");
+        var a = answers[n] || "-";
+        out.push((n + "   ").slice(0, 3) + " | " + a + "       | " + rows[j].querySelector(".q").textContent);
+      }
+    }
+    return out.join("\n");
+  }
+
+  function setStatus(msg, cls) {
+    var s = document.getElementById("status");
+    s.textContent = msg; s.className = cls || "";
+  }
+
+  function sendAnswers() {
+    var btn = document.getElementById("send");
+    if (!ACCESS_KEY) {
+      setStatus("L’envoi n’est pas encore configuré sur ce site.", "err");
+      return;
+    }
+    var count = Object.keys(answers).length;
+    if (count === 0) { setStatus("Répondez à au moins une affirmation avant d’envoyer.", "err"); return; }
+    if (count < TOTAL && !window.confirm("Il reste " + (TOTAL - count) + " affirmation(s) sans réponse. Envoyer quand même ?")) return;
+    var name = document.getElementById("prenom").value.trim();
+    btn.disabled = true; setStatus("Envoi en cours…");
+    fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({
+        access_key: ACCESS_KEY,
+        subject: SUBJECT,
+        from_name: name || "Visiteur du questionnaire",
+        name: name || "(non renseigné)",
+        botcheck: document.getElementById("botcheck").checked,
+        message: buildMessage(name)
+      })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res && res.success) { setStatus("Merci, vos réponses ont bien été envoyées.", "ok"); }
+      else { setStatus("L’envoi a échoué. Vos réponses sont conservées sur cette page, réessayez dans un instant.", "err"); }
+    }).catch(function () {
+      setStatus("L’envoi a échoué (connexion). Vos réponses sont conservées sur cette page, réessayez.", "err");
+    }).then(function () { btn.disabled = false; });
+  }
+
+  document.getElementById("send").addEventListener("click", sendAnswers);
+  function gotoSend() { document.getElementById("envoi").scrollIntoView({ behavior: "smooth" }); }
+
+  var actions = { "goto-send": gotoSend, reset: resetAll, print: function () { window.print(); }, csv: exportCsv };
   var abtns = document.querySelectorAll("[data-action]");
   for (var k = 0; k < abtns.length; k++) {
     abtns[k].addEventListener("click", actions[abtns[k].getAttribute("data-action")]);
